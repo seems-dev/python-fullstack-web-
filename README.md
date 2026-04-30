@@ -163,3 +163,4 @@ This codebase is **a solid architectural baseline**, but it is **not ready to pu
 - **State model**: decide per-user state persistence (sessions/Redis) before scaling.
 - **CI**: add at least `python -m py_compile` + basic tests on every push.
 # python-fullstack-web-
+# python-fullstack-web-
