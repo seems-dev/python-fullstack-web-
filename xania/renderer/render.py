@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from renderer.elements import Element
-from engine.serializer import serialize
+from xania.engine.serializer import serialize
+from xania.renderer.elements import Element
 
 
 def render(node: Element | str | None) -> str:
@@ -10,4 +10,3 @@ def render(node: Element | str | None) -> str:
 
 
 __all__ = ["render"]
-

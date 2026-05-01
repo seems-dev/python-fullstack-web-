@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
-from renderer.component import Component
+from xania.renderer.component import Component
 
 
 @dataclass(frozen=True)
@@ -41,10 +41,10 @@ def html_shell(components: Iterable[tuple[str, Component]], config: RuntimeConfi
 {tw}  </head>
   <body>
 {mounts}
-    <script src="/static/runtime.js"></script>
+    <script>window.XaniaConfig={{serverEvents:true}};</script>
+    <script src="/static/runtime.js?v=2"></script>
   </body>
 </html>"""
 
 
 __all__ = ["RuntimeConfig", "html_shell"]
-
