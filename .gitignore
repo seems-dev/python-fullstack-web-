@@ -16,7 +16,7 @@ build/
 dist/
 *.egg-info/
 .eggs/
-
+.env
 # Tooling
 .mypy_cache/
 .pytest_cache/

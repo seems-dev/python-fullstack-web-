@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Dict, Iterable
+from typing import Dict
 
-from renderer.component import Component
+from xania.renderer.component import Component
 
 
 class ComponentRegistry:
@@ -33,4 +32,3 @@ class ComponentRegistry:
 
 
 __all__ = ["ComponentRegistry"]
-

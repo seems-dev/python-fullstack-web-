@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from renderer.component import Component
-from renderer.elements import Button, Div, H1, Span
-from renderer.state import State
+from xania.renderer.component import Component
+from xania.renderer.elements import Button, Div, H1, Span
+from xania.renderer.state import State
 
 
 class Counter(Component):

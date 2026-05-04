@@ -3,7 +3,7 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
-from renderer.elements import Element, VoidElement
+from xania.renderer.elements import Element, VoidElement
 
 
 def _escape_attr(value: Any) -> str:
@@ -58,4 +58,3 @@ def _serialize_attrs(attrs: dict[str, Any]) -> str:
 
 
 __all__ = ["serialize"]
-

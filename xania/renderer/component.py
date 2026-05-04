@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from renderer.elements import Element
-from renderer.render import render as render_html
-from renderer.state import State, useRef, useState
+from xania.renderer.elements import Element
+from xania.renderer.render import render as render_html
+from xania.renderer.state import State, useRef, useState
 
 
 @dataclass
