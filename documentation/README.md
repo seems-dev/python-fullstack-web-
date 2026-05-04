@@ -2,6 +2,23 @@
 
 After compiling a Xania SPA, you have several options for serving it.
 
+## Building Your SPA with Python Element Functions
+
+**You don't need to write raw HTML strings!** Xania provides Python element functions like `Script()`, `Style()`, `Div()`, `H1()`, etc. See [HTML Elements Guide](HTML_ELEMENTS.md) for complete documentation and examples.
+
+Instead of:
+```python
+html='<div><h1>Hello</h1></div>'
+```
+
+Use Python functions:
+```python
+from xania.renderer.elements import Div, H1
+Div(H1("Hello")).render()
+```
+
+---
+
 ## Quick Start (Easiest)
 
 ### 1. Compile your SPA

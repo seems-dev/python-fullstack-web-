@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 import shutil
@@ -90,70 +92,186 @@ def init(project_name: str) -> None:
     
     # Create main app file
     app_py = project_path / "app.py"
-    app_py.write_text("""\"\"\"
+    app_py.write_text('''"""
 My Xania Website
 
-Run this file to compile to static files:
-    python app.py
+Development server with hot reload:
+    xania dev
 
-Then serve with:
+Build static files:
+    python app.py compile
+
+Then serve static files:
     xania serve .
-\"\"\"
+"""
 
 from pathlib import Path
-from xania.runtime.spa import SpaApp, StaticPage, TemplatePage
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from xania.runtime.spa import SpaApp, StaticPage
+from xania.renderer.elements import (
+    Div, Nav, H1, P, A, Style, Script, Section
+)
+from xania.runtime.compiler import SpaCompiler
 
 # Create your SPA
-app = SpaApp(
+spa = SpaApp(
     name="MySite",
     root_id="app",
 )
 
-# Add pages
-app.route(
-    "/",
-    StaticPage(
-        title="Home",
-        html='''
-<div class="min-h-screen bg-gradient-to-br from-slate-950 to-slate-900 text-white">
-  <div class="max-w-4xl mx-auto px-4 py-20 text-center">
-    <h1 class="text-5xl font-black mb-4">Welcome to Xania</h1>
-    <p class="text-xl text-slate-400 mb-8">A Python UI framework for building SPAs</p>
-    <nav class="flex gap-4 justify-center">
-      <a href="/" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg transition">Home</a>
-      <a href="/about" class="px-6 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition">About</a>
-    </nav>
-  </div>
-</div>
-        '''
-    )
+# Define shared styles using Style() element
+shared_styles = Style("""
+:root {
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --dark-bg: #0f172a;
+    --dark-card: #1e293b;
+    --text-primary: #ffffff;
+    --text-secondary: #94a3b8;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    background: linear-gradient(135deg, var(--dark-bg), var(--dark-card));
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 48rem;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+nav {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+a {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background: var(--primary);
+    color: white;
+    text-decoration: none;
+    border-radius: 0.5rem;
+    transition: background 0.3s;
+}
+
+a:hover {
+    background: var(--primary-hover);
+}
+
+h1 {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    font-weight: bold;
+}
+
+p {
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+}
+""")
+
+# Define interaction script using Script() element
+interaction_script = Script("""
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('✨ Xania page loaded!');
+    console.log('No raw HTML needed - everything is built with Python!');
+    
+    // Add click feedback
+    document.querySelectorAll('a').forEach(link => {
+        link.addEventListener('click', () => {
+            console.log('Navigating to:', link.href);
+        });
+    });
+});
+""")
+
+# Build home page using element functions
+home_page = Div(
+    shared_styles,
+    Section(
+        H1("Welcome to Xania"),
+        P("A Python UI framework for building SPAs"),
+        P("No raw HTML strings needed! Everything is built with Python functions."),
+        Nav(
+            A("Home", href="/"),
+            A("About", href="/about"),
+        ),
+        class_="container"
+    ),
+    interaction_script,
 )
 
-app.route(
-    "/about",
-    StaticPage(
-        title="About",
-        html='''
-<div class="min-h-screen bg-gradient-to-br from-slate-950 to-slate-900 text-white">
-  <div class="max-w-4xl mx-auto px-4 py-20">
-    <h1 class="text-5xl font-black mb-8">About</h1>
-    <p class="text-lg text-slate-300 mb-4">This is a Xania website!</p>
-    <p class="text-lg text-slate-300 mb-8">Edit this file and recompile to make changes.</p>
-    <a href="/" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg transition">← Back to Home</a>
-  </div>
-</div>
-        '''
-    )
+# Build about page using element functions
+about_page = Div(
+    shared_styles,
+    Section(
+        H1("About"),
+        P("This is a Xania website built with Python element functions!"),
+        P("See HTML_ELEMENTS.md in the docs for examples of using Script() and Style()."),
+        P("Edit app.py to customize your site, then save and the server will hot-reload."),
+        Nav(
+            A("← Back to Home", href="/"),
+        ),
+        class_="container"
+    ),
+    interaction_script,
 )
+
+# Add routes to SPA
+spa.route("/", StaticPage(title="Home", html=home_page.render()))
+spa.route("/about", StaticPage(title="About", html=about_page.render()))
+
+# FastAPI development server
+application = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+
+# Mount Xania static files (from installed package)
+from importlib.resources import as_file, files as pkg_files
+try:
+    xania_static = pkg_files("xania").joinpath("static")
+    with as_file(xania_static) as static_path:
+        application.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+except:
+    pass  # Static files optional in dev
+
+# Serve SPA pages with hot reload support
+from fastapi.responses import HTMLResponse
+
+@application.get("/", response_class=HTMLResponse)
+async def root():
+    return home_page.render()
+
+@application.get("/about", response_class=HTMLResponse)
+async def about():
+    return about_page.render()
+
+@application.get("/{full_path:path}", response_class=HTMLResponse)
+async def spa_fallback(full_path: str):
+    # Fallback to home for unmatched routes (SPA routing)
+    return home_page.render()
+
+# Export as 'app' for xania dev
+app = application
 
 if __name__ == "__main__":
-    from xania.runtime.compiler import SpaCompiler
-    
-    # Compile to static files in current directory
-    compiler = SpaCompiler(title="My Website", tailwind=True)
-    compiler.write(app, Path.cwd())
-    print("✅ Website compiled! Run: xania serve .")
-""", encoding="utf-8")
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "compile":
+        # Compile to static files
+        compiler = SpaCompiler(title="My Website", tailwind=False)
+        compiler.write(spa, Path.cwd())
+        print("✅ Website compiled! Run: xania serve .")
+    else:
+        # Run dev server
+        import uvicorn
+        uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=True)
+''', encoding="utf-8")
     
     # Create README
     readme = project_path / "README.md"
@@ -163,27 +281,37 @@ A Xania website.
 
 ## Quick Start
 
-1. **Compile your website:**
-   ```bash
-   python app.py
-   ```
-   This generates:
-   - `index.html`
-   - `static/app.js`
-   - `static/spa_runtime.js`
+**Development with hot reload:**
+```bash
+xania dev
+```
 
-2. **Run the server:**
-   ```bash
-   xania serve .
-   ```
-   
-   Then open: http://127.0.0.1:8000
+Then open: http://127.0.0.1:8000
 
-## Edit Your Site
+Edit `app.py` and save - the server will hot-reload automatically!
+
+## Build for Production
+
+To create static files:
+```bash
+python app.py compile
+```
+
+This generates:
+- `index.html`
+- `static/app.js`
+- `static/spa_runtime.js`
+
+Then serve with:
+```bash
+xania serve .
+```
+
+## Customize Your Site
 
 - Edit `app.py` to add pages and change content
-- Run `python app.py` to recompile
-- Refresh browser to see changes
+- Modify styles, add routes, customize components
+- Save and hot-reload will update your browser instantly
 
 ## Deploy
 
@@ -203,8 +331,7 @@ Visit: https://github.com/xania/framework
     click.echo("")
     click.echo("Next steps:")
     click.echo(f"  cd {project_name}")
-    click.echo("  python app.py          # Compile")
-    click.echo("  xania serve .          # Run server")
+    click.echo("  xania dev              # Start with hot reload")
 
 
 @cli.command("dev")
@@ -215,7 +342,33 @@ Visit: https://github.com/xania/framework
 def dev(app_path: Optional[str], host: str, port: int, reload: bool) -> None:
     """Run a development server (uvicorn --reload by default)."""
     cfg = CliConfig()
-    _run_uvicorn(app_path or cfg.default_app, host=host, port=port, reload=reload)
+    
+    # If no app specified, try to use local app.py in current directory
+    if app_path is None:
+        cwd = Path.cwd()
+        local_app = cwd / "app.py"
+        if local_app.exists():
+            app_path = "app:app"
+            # Set PYTHONPATH for the subprocess
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(cwd) + os.pathsep + env.get("PYTHONPATH", "")
+            
+            # Run uvicorn as a subprocess with the updated environment
+            cmd = [
+                sys.executable, "-m", "uvicorn",
+                app_path,
+                "--host", host,
+                "--port", str(port),
+            ]
+            if reload:
+                cmd.append("--reload")
+            
+            subprocess.run(cmd, env=env)
+            return
+        else:
+            app_path = cfg.default_app
+    
+    _run_uvicorn(app_path, host=host, port=port, reload=reload)
 
 
 @cli.command("build")

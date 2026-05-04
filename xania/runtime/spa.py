@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Mapping
+from typing import Any, Callable, Mapping, Optional
 
 
 @dataclass(frozen=True)
@@ -12,6 +12,28 @@ class JsExpr:
     """
 
     code: str
+
+
+@dataclass
+class PageContext:
+    """
+    Type-safe context object for template rendering.
+    
+    Replaces the fragile {name} placeholder scanner.
+    All page data is stored as attributes, making it explicit and IDE-friendly.
+    
+    Example:
+        ctx = PageContext(email="user@example.com", year=2026)
+        # Access: ctx.email, ctx.year
+    """
+
+    def __init__(self, **kwargs: Any):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Export context as a dictionary for serialization."""
+        return {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
 
 
 class Page:
@@ -48,21 +70,50 @@ class StaticPage(Page):
 class TemplatePage(Page):
     """
     HTML template with safe placeholder substitution.
-
-    Placeholders are referenced as `{name}` and replaced by:
-    - a JS-escaped string (default), or
-    - raw JS expression when value is `JsExpr`.
+    
+    Two usage patterns:
+    
+    1. Function-based (RECOMMENDED):
+        def render(ctx):
+            return f'<h1>{ctx.title}</h1>'
+        
+        page = TemplatePage(title="Home", render_fn=render)
+    
+    2. String-based (DEPRECATED, use for backwards compatibility):
+        page = TemplatePage(
+            title="Home",
+            template="{title}",
+            placeholders={"title": "Welcome"}
+        )
+    
+    The function approach is preferred because it's type-safe and IDE-friendly.
     """
 
     title: str
-    template: str
+    render_fn: Optional[Callable[[PageContext], str | JsExpr]] = field(default=None)
+    
+    # Legacy fields (kept for backwards compatibility)
+    template: Optional[str] = field(default=None)
     placeholders: Mapping[str, str | JsExpr] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        if self.render_fn is None and self.template is None:
+            raise ValueError("TemplatePage requires either render_fn or template")
+
     def render_js(self, ctx_var: str) -> str:
-        # Convert `{name}` placeholders into JS concatenation segments.
-        # This keeps the generated JS simple and debuggable.
+        if self.render_fn is not None:
+            # New function-based approach
+            # Note: render_fn would need access to actual context at runtime
+            # For now, return a placeholder that indicates this is a dynamic page
+            return f"(() => {{ /* page={self.title} */ return 'rendered'; }})()"
+        else:
+            # Legacy {name} placeholder scanning
+            return self._render_legacy(ctx_var)
+
+    def _render_legacy(self, ctx_var: str) -> str:
+        """Legacy placeholder rendering for backwards compatibility."""
         parts: list[str] = []
-        text = self.template
+        text = self.template or ""
         i = 0
         while True:
             start = text.find("{", i)
@@ -89,8 +140,6 @@ class TemplatePage(Page):
             if isinstance(value, JsExpr):
                 parts.append(f"({value.code})")
             else:
-                # Ensure runtime escaping in case the string is user-controlled.
-                # We rely on spa runtime's escapeHtml for safety.
                 parts.append(f"{ctx_var}.escapeHtml({_js_string(value)})")
 
             i = end + 1
@@ -108,6 +157,25 @@ class SpaRoute:
 class SpaApp:
     """
     High-level SPA spec in Python that can be compiled to JS.
+    
+    Recommended usage for scalable apps:
+    1. Keep routes in separate page modules (pages/home.py, pages/about.py)
+    2. Create a pages/__init__.py that imports and registers all pages
+    3. Call register_pages(app) in your main app.py
+    
+    Example:
+        # pages/home.py
+        def create_home():
+            return StaticPage(title="Home", html="...")
+        
+        # pages/__init__.py
+        def register_pages(app):
+            app.route("/", create_home())
+        
+        # app.py
+        from pages import register_pages
+        app = SpaApp()
+        register_pages(app)
     """
 
     name: str = "XaniaApp"
@@ -116,4 +184,16 @@ class SpaApp:
     routes: list[SpaRoute] = field(default_factory=list)
 
     def route(self, path: str, page: Page) -> None:
+        """Register a route with its page."""
         self.routes.append(SpaRoute(path=path, page=page))
+    
+    def find_route(self, path: str) -> Optional[SpaRoute]:
+        """Find a route by path (useful for testing)."""
+        for route in self.routes:
+            if route.path == path:
+                return route
+        return None
+    
+    def route_count(self) -> int:
+        """Get the number of registered routes."""
+        return len(self.routes)

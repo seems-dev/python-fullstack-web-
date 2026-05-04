@@ -9,14 +9,42 @@ from xania.runtime.spa import SpaApp, _js_string
 @dataclass(frozen=True)
 class SpaCompiler:
     """
-    Compile a `SpaApp` into:
-    - `index.html`
-    - `static/spa_runtime.js` (copied from package)
-    - `static/app.js` (generated from Python spec)
+    Compile a `SpaApp` into production-ready static files:
+    - `index.html` (main entry point)
+    - `static/spa_runtime.js` (framework runtime, copied from package)
+    - `static/app.js` (generated from your Python page spec)
+    
+    ## Tailwind CSS Configuration
+    
+    The `tailwind` parameter controls CSS styling:
+    
+    - `tailwind=True` (default): Loads Tailwind CSS from the official CDN
+      Uses: https://cdn.tailwindcss.com
+      Pros: Zero configuration, works immediately, includes all utilities
+      Cons: Requires internet connection, not optimized for production size
+      
+    - `tailwind=False`: No CSS included (bring your own stylesheet)
+      You can link to custom CSS in a subclass or pre-processing step
+      
+    ## Future Improvements
+    
+    Future versions may support:
+    - Custom CSS paths (tailwind_config parameter)
+    - Tailwind CLI integration for production bundles
+    - Class scanning and purging for smaller output
+    - CSS module support
+    
+    Example with custom CSS:
+    ```python
+    compiler = SpaCompiler(title="My App", tailwind=False)
+    # Then manually add <link rel="stylesheet" href="/static/custom.css">
+    # Or subclass to override _write_index()
+    ```
     """
 
     title: str = "Xania SPA"
     tailwind: bool = True
+    """Whether to include Tailwind CSS CDN. Default: True."""
 
     def write(self, app: SpaApp, out_dir: Path) -> None:
         out_dir = out_dir.resolve()
